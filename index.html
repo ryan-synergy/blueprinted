@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Blueprinted">
+<meta name="theme-color" content="#F6F4ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141512" media="(prefers-color-scheme: dark)">
+<title>Blueprinted — Savant Config Takeoff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F4ED; --surface:#FFFFFF; --ink:#191713; --muted:#76715F;
+    --line:#DCD8C9; --line2:#B9B5A4; --orange:#E8500A; --orange-dim:#F4C9B2;
+    --sans:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#141512; --surface:#1B1C1A; --ink:#E8E6DE; --muted:#8E908A;
+      --line:#2B2D29; --line2:#45473F; --orange:#FFB000; --orange-dim:#6B4A00;
+    }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:16px;}
+  #topbar{position:sticky; top:0; z-index:20; background:var(--paper);
+    padding:calc(10px + env(safe-area-inset-top)) 16px 10px 16px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    border-bottom:1px solid var(--ink);}
+  #topbar .wordmark{font-size:12px; font-weight:500; letter-spacing:.16em; font-family:var(--mono);}
+  #topbar a{color:var(--muted); font-family:var(--mono); font-size:12px;
+    letter-spacing:.06em; text-decoration:none; padding:8px 0;}
+  #app{max-width:560px; margin:0 auto; padding:14px 16px 60px 16px;}
+  h2{font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.12em;
+    color:var(--muted); margin:24px 0 8px 1px; text-transform:uppercase;}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:3px;
+    padding:14px; margin-bottom:10px;}
+  .row{display:flex; align-items:center; gap:8px;}
+  .grow{flex:1; min-width:0;}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:46px;
+    background:var(--surface); color:var(--ink); border:1px solid var(--line2); border-radius:2px;
+    padding:11px 16px; font-size:14px; font-weight:500; font-family:var(--sans); cursor:pointer; letter-spacing:.02em;}
+  .btn:active{opacity:.65;}
+  .btn.primary{background:var(--ink); border-color:var(--ink); color:var(--paper); letter-spacing:.05em;}
+  .btn.block{display:flex; width:100%;}
+  .btn.small{min-height:38px; padding:7px 12px; font-size:13px; font-weight:400;}
+  .item{display:flex; align-items:flex-start; gap:11px; padding:12px 13px; background:var(--surface);
+    border:1px solid var(--line); border-radius:3px; margin-bottom:7px;}
+  .idx{font-family:var(--mono); font-size:12px; color:var(--muted); min-width:22px; padding-top:2px;}
+  .item .title{font-weight:500; font-size:15px;}
+  .item .sub{font-size:12.5px; color:var(--muted); margin-top:2px; line-height:1.45;}
+  .item .fl{color:var(--orange); font-family:var(--mono); font-size:13px; padding-top:2px;}
+  .muted{color:var(--muted); font-size:13px;}
+  .mono{font-family:var(--mono);}
+  .flags{border:1px solid var(--orange); border-radius:3px; padding:10px 13px; margin-bottom:12px;}
+  .flags .ftitle{font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--orange); margin-bottom:7px;}
+  .flags .fitem{font-size:14px; padding:7px 0; border-top:1px solid var(--line);}
+  .flags .fitem:first-of-type{border-top:none;}
+  .sheet-table td{padding:10px 4px; border-bottom:1px solid var(--line);
+    font-family:var(--mono); font-size:15px; text-align:right;}
+  .sheet-table td:first-child{text-align:left; font-weight:500; font-family:var(--sans); font-size:14px;}
+  table{width:100%; border-collapse:collapse;}
+  .ovh{display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--ink); padding-bottom:9px; margin-top:6px;}
+  .ovh .t{font-size:20px; font-weight:600;}
+  .ovh .c{font-family:var(--mono); font-size:12px; color:var(--muted); text-align:right; line-height:1.5;}
+  #drop{border:1.5px dashed var(--line2); border-radius:3px; background:var(--surface);
+    padding:44px 18px 38px; text-align:center; cursor:pointer; margin-top:14px;}
+  #drop.over{border-color:var(--orange); border-style:solid;}
+  #drop .big{font-family:var(--mono); font-size:13px; letter-spacing:.1em; margin-bottom:6px;}
+  #drop .small{color:var(--muted); font-size:13px; line-height:1.6;}
+  .rule{border-top:1px solid var(--ink); margin:18px 0 0;}
+  .gearline{font-size:13.5px; padding:6px 0; border-top:1px solid var(--line); line-height:1.5;}
+  .gearline:first-of-type{border-top:none;}
+  .gearline .cat{font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:.06em;}
+  #toast{position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(8px); z-index:60;
+    background:var(--ink); color:var(--paper); padding:11px 18px; border-radius:2px; font-size:14px;
+    opacity:0; transition:opacity .18s; pointer-events:none; white-space:nowrap;}
+  #toast.show{opacity:1;}
+  .err{border:1px solid var(--orange); border-radius:3px; padding:13px; color:var(--orange);
+    font-family:var(--mono); font-size:13px; line-height:1.6; margin-top:14px;}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <span class="wordmark">BLUEPRINTED</span>
+  <a href="https://ryan-synergy.github.io/sitewalk/" target="_blank" rel="noopener">SITEWALK →</a>
+</div>
+<div id="app"></div>
+<div id="toast"></div>
+<input type="file" id="filePick" accept=".zip,.rpmconfig,.rpmConfig" style="display:none">
+<input type="file" id="dirPick" webkitdirectory style="display:none">
+<script>
+"use strict";
+
+/* ============ SiteWalk schema ============ */
+const RACK_SOURCES = ["Apple TV","Roku","DirecTV","Dish","Cable box","Kaleidescape","Game console","Other"];
+const EXW = ["CAT5e","CAT6","Coax","HDMI","Component","Composite","SpeakerWire","Conduit","Power"];
+const uid = () => Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-3);
+const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+function newRoom(name){
+  return { id:uid(), name:name, floor:"", flagged:false,
+    tv:true, tvSize:"", tvStatus:"New", mount:"Wall mount",
+    fireplace:false, fpW:"", fpH:"", fpMantel:"", wallW:"", wallH:"",
+    isTheater:false, thDisplay:"", thScreen:"", thRows:1, thSeats:4, riser:false, acoustic:false,
+    audio:"tv", spkType:"In-ceiling", subLoc:"In-wall", audStatus:"New", audioFeed:"house", zoneName:"",
+    landscape:false, satCount:8, buriedSub:true,
+    videoFeed:"matrix", localSources:[], equipLoc:"Head-end rack",
+    control:"", wiring:"",
+    exw:Object.fromEntries(EXW.map(k=>[k,0])), notes:"" };
+}
+function newProject(){
+  return { id:uid(), schema:2, client:"", address:"",
+    date:new Date().toISOString().slice(0,10),
+    jobType:"Retrofit", controlSystem:"Savant", habits:[], notes:"", lastBackup:"",
+    rack:{ location:"", notes:"", sourcesTBD:true,
+      sources:Object.fromEntries(RACK_SOURCES.map(k=>[k,0])) },
+    network:{ isp:"", modemLoc:"", waps:0, drops:0, notes:"" },
+    cameras:[], rooms:[] };
+}
+
+/* ============ Savant vocabulary ============ */
+const CATEGORY = [
+  ["HD_monitor","Display"],["projector","Display"],
+  ["AV_processor","AVR / Processor"],["AV_receiver","AVR / Processor"],["Receiver","AVR / Processor"],
+  ["Amplifier","Amplifier"],
+  ["speaker_system","Speakers"],
+  ["Satellite_tv_tuner","Source"],["Cable_tv_tuner","Source"],["Cable_box","Source"],["Game_console","Source"],
+  ["Media_server","Source"],["DVD","Source"],["Disc","Source"],
+  ["CD_player","Source"],["Media_player","Source"],["tuner","Source"],
+  ["AV_switch","Switching"],["switchprocessor","Switching"],
+  ["Media_converter","Accessory"],
+  ["control_extender","Control"],["touchpanel","Control"],
+  ["RacePointMedia_host","Control"],["RacePointMedia_iPad","Control"],["webpanel","Control"],
+  ["remote","Control"],["keypad","Control"],
+  ["Lighting_controller","Lighting"],
+  ["HVAC","Climate"],["thermostat","Climate"],
+  ["Pool_and_spa","Pool / Spa"],
+  ["Contact_relay","Relay / Lift"],
+  ["Garage_controller","Garage"],
+  ["Trigger_environment","Power / Trigger"],
+  ["Energy_","Energy"],
+  ["Network_device","Network"],
+  ["Security_camera","Camera"],["camera","Camera"],
+  ["Surveillance","Security"],["Security_system","Security"],
+  ["Door_entry","Entry"],["DoorLock","Entry"],["doorstation","Entry"],
+  ["Telephony","Comms"],
+];
+const SOURCE_CLASSES = ["Satellite_tv_tuner","Cable_tv_tuner","Cable_box","Game_console",
+  "Media_server","DVD","Disc","CD_player","Media_player"];
+
+function categoryOf(dc, man){
+  dc = (dc||"").toLowerCase();
+  for(const [needle,cat] of CATEGORY) if(dc.includes(needle.toLowerCase())) return cat;
+  if((man||"").toLowerCase()==="sonos") return "Source";
+  return "Other";
+}
+function rackSourceBucket(c){
+  const man = (c.manufacturer||"").toLowerCase();
+  if(man.includes("apple")) return "Apple TV";
+  if(man.includes("directv")) return "DirecTV";
+  if(man.includes("dish")) return "Dish";
+  if(man.includes("roku")) return "Roku";
+  if(man.includes("kaleidescape")) return "Kaleidescape";
+  const dc = (c.device_class||"").toLowerCase();
+  if(dc.includes("cable_tv")||dc.includes("cable_box")) return "Cable box";
+  if(dc.includes("game")) return "Game console";
+  return "Other";
+}
+function isSource(c){
+  const dc = (c.device_class||"").toLowerCase();
+  if(SOURCE_CLASSES.some(s=>dc.includes(s.toLowerCase()))) return true;
+  return (c.manufacturer||"").toLowerCase()==="sonos";
+}
+const LOCAL_SOURCE_LABELS = {"Apple TV":"Apple TV","Roku":"Roku","DirecTV":"DirecTV",
+  "Dish":"Dish","Cable box":"Cable box","Game console":"Game console"};
+const ROOM_NAME_MAP = {family:"Family Room",living:"Living Room",dining:"Dining Room",
+  master:"Master Bedroom",guest:"Guest Room",bonus:"Bonus Room",media:"Media Room",
+  great:"Great Room",den:"Den",bar:"Bar"};
+const roomName = z => ROOM_NAME_MAP[z.trim().toLowerCase()] || z.trim();
+const isRackZoneName = n => { n=n.trim(); return n.toLowerCase()==="shared equipment" || (n.startsWith("[")&&n.endsWith("]")); };
+
+function zoneKind(zone){
+  const name = zone.name.trim(), ztype = zone.type||"";
+  if(ztype==="user-alias" || name.endsWith("__Tile1")) return "alias";
+  if(name.startsWith("[") && name.endsWith("]")) return "host";
+  if(ztype==="resource" || isRackZoneName(name)) return "rack";
+  if(ztype && ztype!=="user") return "alias";
+  return "room";
+}
+function tvSizeFromModel(model){
+  for(const m of String(model||"").matchAll(/(\d{2,3})/g)){
+    const n = +m[1];
+    if(n>=20 && n<=120) return n;
+  }
+  return null;
+}
+function cleanClientName(job){
+  let s = job.replace(/\.rpmconfig$/i,"");
+  s = s.replace(/[\s_\-]+\d+(\.\d+)+.*$/,"");
+  s = s.replace(/\s+\d{1,2}-\d{1,2}-\d{2,4}.*$/,"");
+  s = s.replace(/\s*\(\d{4}[-_].*$/,"");
+  s = s.replace(/^[\s\-_]+|[\s\-_]+$/g,"");
+  return s || job;
+}
+
+/* ============ plist + xml parsing ============ */
+function plistToJS(el){
+  switch(el.nodeName){
+    case "dict": {
+      const o = {};
+      const kids = [...el.children];
+      for(let i=0;i<kids.length;i+=2)
+        if(kids[i].nodeName==="key" && kids[i+1]) o[kids[i].textContent] = plistToJS(kids[i+1]);
+      return o;
+    }
+    case "array": return [...el.children].map(plistToJS);
+    case "string": case "date": case "data": return el.textContent;
+    case "integer": case "real": return Number(el.textContent);
+    case "true": return true;
+    case "false": return false;
+    default: return el.textContent;
+  }
+}
+function parsePlist(text){
+  const doc = new DOMParser().parseFromString(text,"application/xml");
+  if(doc.querySelector("parsererror")) throw new Error("plist parse error");
+  const root = [...doc.documentElement.children][0];
+  return root ? plistToJS(root) : null;
+}
+function parseZones(xmlText){
+  const doc = new DOMParser().parseFromString(xmlText,"application/xml");
+  if(doc.querySelector("parsererror")) throw new Error("zoneConfig.xml parse error");
+  const zones = [];
+  doc.querySelectorAll("zone").forEach(z=>{
+    const comps = [];
+    z.querySelectorAll("component").forEach(c=>{
+      comps.push({ name:(c.getAttribute("user_defined_name")||"").trim(),
+        manufacturer:c.getAttribute("manufacturer")||"",
+        model:c.getAttribute("model")||"",
+        device_class:c.getAttribute("device_class")||"",
+        shared:c.getAttribute("isShared")==="true" });
+    });
+    zones.push({ name:z.getAttribute("name")||"?", type:z.getAttribute("type")||"", components:comps });
+  });
+  return zones;
+}
+function parseServices(plist){
+  const out = {};
+  if(!plist) return out;
+  const sopz = plist.ServiceOrderPerZone || {};
+  for(const zone in sopz){
+    const seen = new Set(), ordered = [];
+    for(const s of sopz[zone]){
+      if(!String(s["Service Type"]||"").startsWith("SVC_AV")) continue;
+      const src = String(s["Source Component"]||"").trim();
+      if(src && !seen.has(src)){ seen.add(src); ordered.push(src); }
+    }
+    out[zone] = ordered;
+  }
+  return out;
+}
+function parseConnections(plist){
+  if(!Array.isArray(plist)) return [];
+  const edges = [];
+  for(const e of plist){
+    try{
+      const src = e.RPMComponentConnectionSourceInfo.RPMComponentIdentifier;
+      const snk = e.RPMComponentConnectionSinkInfo.RPMComponentIdentifier;
+      const fmt = e.RPMComponentConnectionSourceInfo.RPMComponentConnectorFormatStringKey || "";
+      if(src!=null && snk!=null) edges.push([String(src).trim(), String(snk).trim(), String(fmt)]);
+    }catch(err){}
+  }
+  return edges;
+}
+
+/* ============ mapping (mirrors blueprinted.py) ============ */
+function zoneHasAv(zone, sources){
+  if(sources && sources.length) return true;
+  return zone.components.some(c=>{
+    const cat = categoryOf(c.device_class, c.manufacturer);
+    return ["Display","AVR / Processor","Amplifier","Speakers","Source"].includes(cat);
+  });
+}
+function classifyRoom(zone, sources){
+  const comps = zone.components;
+  const displays = comps.filter(c=>categoryOf(c.device_class)==="Display");
+  const avrs = comps.filter(c=>categoryOf(c.device_class)==="AVR / Processor");
+  const amps = comps.filter(c=>categoryOf(c.device_class)==="Amplifier");
+  const surround = comps.filter(c=>c.device_class.toLowerCase().includes("surround"));
+  const stereo = comps.filter(c=>c.device_class.toLowerCase().includes("stereo_speaker"));
+  const localSrc = comps.filter(isSource);
+
+  const r = newRoom(roomName(zone.name));
+  const notes = [];
+
+  r.tv = displays.length>0;
+  if(displays.length){
+    const d = displays[0];
+    const size = tvSizeFromModel(d.model);
+    notes.push(("WAS:"+(size?` ${size}"`:"")+` ${d.manufacturer} ${d.model}`).trim());
+    if(displays.length>1) notes.push(`${displays.length} displays: `+displays.map(x=>x.name).join(", "));
+    r.tvStatus = "Existing — keep";
+    r.videoFeed = "matrix";
+    notes.push("Was on video distribution — wire path to TV likely in place, verify");
+  }else{
+    r.videoFeed = "none";
+  }
+
+  if(zone.name.toLowerCase().includes("theater")) r.isTheater = true;
+
+  if(surround.length || (avrs.length && !stereo.length)){
+    r.audio = "5.1"; r.audioFeed = "local"; r.audStatus = "Existing — keep";
+    avrs.forEach(a=>notes.push(`AVR: ${a.manufacturer} ${a.model}`));
+    if(stereo.length && surround.length)
+      notes.push("Also had stereo pair: "+stereo.map(s=>s.name).join(", "));
+  }else if(avrs.length && stereo.length){
+    r.audio = "2.0"; r.audioFeed = "local"; r.audStatus = "Existing — keep";
+    avrs.forEach(a=>notes.push(`Local receiver (2-ch use): ${a.manufacturer} ${a.model}`));
+  }else if(stereo.length){
+    r.audio = "2.0"; r.audioFeed = amps.length ? "local" : "house"; r.audStatus = "Existing — keep";
+    if(stereo.length>1) notes.push(`${stereo.length} stereo pairs: `+stereo.map(s=>s.name).join(", "));
+  }else if(amps.length){
+    r.audio = "2.0"; r.audioFeed = "local"; r.audStatus = "Existing — keep"; r.flagged = true;
+    notes.push("In-room amp but speakers not in config — verify speakers");
+  }else if(displays.length){
+    r.audio = "tv";
+  }else{
+    r.audio = "none"; r.flagged = true;
+    notes.push("Savant zone had AV services but no endpoints — check what it did");
+  }
+  amps.forEach(a=>notes.push(`In-room amp: ${a.name} (${a.manufacturer} ${a.model})`));
+
+  for(const c of localSrc){
+    const label = LOCAL_SOURCE_LABELS[rackSourceBucket(c)] || "Other";
+    if(!r.localSources.includes(label)) r.localSources.push(label);
+    notes.push(`In-room source: ${c.name} (${c.manufacturer} ${c.model})`);
+  }
+
+  const handled = new Set([...displays,...avrs,...amps,...surround,...stereo,...localSrc]);
+  for(const c of comps){
+    if(handled.has(c)) continue;
+    const cat = categoryOf(c.device_class, c.manufacturer);
+    if(["Lighting","Climate","Relay / Lift","Pool / Spa","Control","Garage","Security","Camera","Entry","Power / Trigger"].includes(cat))
+      notes.push(`${cat}: ${c.name} (${c.manufacturer} ${c.model})`);
+  }
+  if(sources && sources.length) notes.push("Could watch/hear: "+sources.map(s=>s.trim()).join(", "));
+  r.notes = notes.join("\n");
+  return r;
+}
+
+function convert(files, jobName){
+  // files: { zoneconfig, serviceorder, componentconnections, rpmsysteminfo } (text or null)
+  if(!files.zoneconfig) throw new Error("No zoneConfig.xml found — is this a Savant .rpmConfig?");
+  const warnings = [];
+  const zones = parseZones(files.zoneconfig);
+  let services = {}, edges = [], info = {host:"", saved:"", tz:""};
+  try{ services = parseServices(files.serviceorder ? parsePlist(files.serviceorder) : null); }
+  catch(e){ warnings.push("serviceOrder.plist unreadable — zone×source matrix empty"); }
+  if(!files.serviceorder) warnings.push("serviceOrder.plist missing — zone×source matrix empty");
+  try{ edges = parseConnections(files.componentconnections ? parsePlist(files.componentconnections) : null); }
+  catch(e){ warnings.push("componentConnections.plist unreadable — no connection list"); }
+  if(!files.componentconnections) warnings.push("componentConnections.plist missing — no connection list");
+  try{
+    if(files.rpmsysteminfo){
+      const d = parsePlist(files.rpmsysteminfo);
+      info = {host:d.RPMSystemName||"", saved:d.SaveTimeStampKey||"", tz:d.RPMTimeZone||""};
+    }
+  }catch(e){}
+
+  const job = jobName.replace(/\.rpmconfig$/i,"");
+  const project = newProject();
+  project.client = cleanClientName(job);
+
+  const rackComps = [], hostNotes = [], skipped = [];
+  for(const z of zones){
+    const kind = zoneKind(z);
+    for(const c of z.components){
+      if(categoryOf(c.device_class, c.manufacturer)==="Camera"){
+        project.cameras.push({ id:uid(), location:c.name||z.name,
+          type: c.device_class.toLowerCase().includes("ptz") ? "PTZ" : "Turret" });
+      }
+    }
+    if(kind==="alias") continue;
+    if(kind==="host"){
+      hostNotes.push(...z.components.map(c=>`${c.name} — ${c.manufacturer} ${c.model}`));
+      continue;
+    }
+    if(kind==="rack"){ rackComps.push(...z.components); continue; }
+    if(!zoneHasAv(z, services[z.name]||[])){ skipped.push(z.name); continue; }
+    project.rooms.push(classifyRoom(z, services[z.name]||[]));
+  }
+
+  project.notes = `Imported from Savant config '${job}' (host: ${info.host}, saved ${info.saved}).\n`+
+    "All gear/wiring shown is the OLD system — verify on walk.";
+  if(skipped.length)
+    project.notes += `\nNon-AV Savant zones not imported as rooms (${skipped.length} — lighting/relays/cameras only): `+
+      [...skipped].sort().join(", ");
+
+  // rack
+  const srcCounts = {}, rackLines = [];
+  for(const c of rackComps){
+    const cat = categoryOf(c.device_class, c.manufacturer);
+    if(isSource(c)) srcCounts[rackSourceBucket(c)] = (srcCounts[rackSourceBucket(c)]||0)+1;
+    if(cat!=="Accessory") rackLines.push(`${c.name} — ${c.manufacturer} ${c.model} (${cat})`);
+  }
+  for(const k in srcCounts) if(k in project.rack.sources) project.rack.sources[k] = srcCounts[k];
+  project.rack.sourcesTBD = true;
+  project.rack.notes = "WAS IN RACK:\n"+rackLines.join("\n") +
+    (hostNotes.length ? "\nHOST: "+hostNotes.join("; ") : "");
+
+  const habits = new Set();
+  for(const c of rackComps){
+    if(!isSource(c)) continue;
+    const b = rackSourceBucket(c);
+    if(b==="DirecTV") habits.add("DirecTV");
+    if(b==="Dish") habits.add("Dish");
+    if(b==="Cable box") habits.add("Cable");
+    if(b==="Apple TV"||b==="Roku") habits.add("YouTube TV / streaming");
+  }
+  project.habits = [...habits].sort();
+
+  return { project, zones, services, edges, info, warnings, skipped, rackLines, job };
+}
+
+/* ============ output builders ============ */
+function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+function csvRow(cells){ return cells.map(csvCell).join(","); }
+
+function buildEquipmentCSV(zones){
+  const rows = [["Zone","Component","Manufacturer","Model","Category","Device class","Shared"]];
+  for(const z of zones) for(const c of z.components)
+    rows.push([z.name, c.name, c.manufacturer, c.model,
+      categoryOf(c.device_class, c.manufacturer), c.device_class, c.shared?"yes":""]);
+  return rows.map(csvRow).join("\n")+"\n";
+}
+function buildMatrixCSV(services){
+  const all = [];
+  for(const z in services) for(const s of services[z]) if(!all.includes(s)) all.push(s);
+  const rows = [["Zone \\ Source", ...all.map(s=>s.trim())]];
+  for(const z of Object.keys(services).sort())
+    rows.push([z, ...all.map(s=>services[z].includes(s)?"✓":"")]);
+  return rows.map(csvRow).join("\n")+"\n";
+}
+function buildSummaryMD(res){
+  const { project, zones, services, edges, info, warnings, job } = res;
+  const userZones = zones.filter(z=>zoneKind(z)==="room" && zoneHasAv(z, services[z.name]||[]));
+  const nonavZones = zones.filter(z=>zoneKind(z)==="room" && !zoneHasAv(z, services[z.name]||[])).map(z=>z.name);
+  const rackZones = zones.filter(z=>["rack","host"].includes(zoneKind(z)));
+  const byName = {};
+  for(const z of zones) for(const c of z.components) byName[c.name] = z.name;
+  const L = [];
+  L.push(`# Takeoff — ${job}`,"");
+  L.push(`Source: Savant Blueprint config, host **${info.host||"?"}**, saved ${info.saved||"?"}. `+
+    `Converted by Blueprinted ${new Date().toISOString().slice(0,10)}.`,"");
+  L.push("Everything below is the OLD system as programmed — logical design, not verified "+
+    "physical install. Use it as requirements + reference; the walk confirms reality.");
+  if(warnings.length){ L.push("","**Converter warnings:** "+warnings.join("; ")); }
+  L.push("",`## Rooms (${userZones.length})`,"");
+  for(const z of userZones){
+    L.push(`### ${z.name}`);
+    for(const c of z.components)
+      L.push(`- ${c.name} — ${c.manufacturer} ${c.model} (${categoryOf(c.device_class, c.manufacturer)})`);
+    const srcs = services[z.name]||[];
+    if(srcs.length) L.push(`- *Sources available:* ${srcs.map(s=>s.trim()).join(", ")}`);
+    L.push("");
+  }
+  L.push("## Rack / shared equipment","");
+  for(const z of rackZones){
+    if(rackZones.length>1) L.push(`**${z.name}**`);
+    for(const c of z.components)
+      L.push(`- ${c.name} — ${c.manufacturer} ${c.model} (${categoryOf(c.device_class, c.manufacturer)})`);
+    L.push("");
+  }
+  if(project.cameras.length){
+    L.push(`## Cameras (${project.cameras.length})`,"");
+    for(const cam of project.cameras) L.push(`- ${cam.location} (${cam.type})`);
+    L.push("");
+  }
+  if(nonavZones.length){
+    L.push(`## Non-AV zones — not imported as rooms (${nonavZones.length})`,"");
+    L.push("Lighting / relay / camera-only zones; in SiteWalk they matter only as quote conversations, not walk rooms.","");
+    L.push([...nonavZones].sort().join(", "),"");
+  }
+  if(edges.length){
+    L.push("## Connections (as programmed)","");
+    L.push("Source → sink, with signal format. Zone of each end in brackets.","");
+    for(const [src,snk,fmt] of edges)
+      L.push(`- ${src} [${byName[src]||"?"}] → ${snk} [${byName[snk]||"?"}]  (${fmt})`);
+    L.push("");
+  }
+  L.push("## How the SiteWalk import was filled","");
+  L.push("- Every room imported with gear marked **Existing — keep**; flip to replace on the walk. "+
+    "TV sizes left TBD (old sizes are in room notes).");
+  L.push("- Wiring status left blank everywhere → orange-flags every room on purpose.");
+  L.push("- Rack source steppers prefilled from old sources but kept **TBD-flagged**.");
+  L.push("- Non-AV systems (lighting, pool, lifts, HVAC) are in project/room notes — "+
+    "SiteWalk doesn't model them, but they're quote conversations.");
+  return L.join("\n")+"\n";
+}
+
+/* ============ zip reader (deflate via DecompressionStream) ============ */
+async function unzip(file, wantedBasenames){
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const dv = new DataView(buf.buffer);
+  // find EOCD
+  let eocd = -1;
+  for(let i=buf.length-22; i>=Math.max(0,buf.length-22-65535); i--)
+    if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; }
+  if(eocd<0) throw new Error("Not a zip file (no end-of-central-directory)");
+  let cdCount = dv.getUint16(eocd+10,true);
+  let cdOffset = dv.getUint32(eocd+16,true);
+  if(cdCount===0xFFFF || cdOffset===0xFFFFFFFF){
+    // zip64: locator sits just before EOCD
+    const loc = eocd-20;
+    if(loc>=0 && dv.getUint32(loc,true)===0x07064b50){
+      const z64 = Number(dv.getBigUint64(loc+8,true));
+      if(dv.getUint32(z64,true)!==0x06064b50) throw new Error("Bad zip64 record");
+      cdCount = Number(dv.getBigUint64(z64+32,true));
+      cdOffset = Number(dv.getBigUint64(z64+48,true));
+    }
+  }
+  const td = new TextDecoder();
+  const found = {};
+  let topDir = "";
+  let p = cdOffset;
+  for(let i=0; i<cdCount; i++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method = dv.getUint16(p+10,true);
+    let compSize = dv.getUint32(p+20,true);
+    const nameLen = dv.getUint16(p+28,true), extraLen = dv.getUint16(p+30,true), cmtLen = dv.getUint16(p+32,true);
+    let localOff = dv.getUint32(p+42,true);
+    const name = td.decode(buf.subarray(p+46, p+46+nameLen));
+    // zip64 extra field for any 0xFFFFFFFF values
+    if(compSize===0xFFFFFFFF || localOff===0xFFFFFFFF){
+      let ep = p+46+nameLen; const eEnd = ep+extraLen;
+      while(ep+4<=eEnd){
+        const id = dv.getUint16(ep,true), sz = dv.getUint16(ep+2,true);
+        if(id===0x0001){
+          let fp = ep+4;
+          const uncomp32 = dv.getUint32(p+24,true);
+          if(uncomp32===0xFFFFFFFF) fp+=8;
+          if(compSize===0xFFFFFFFF){ compSize=Number(dv.getBigUint64(fp,true)); fp+=8; }
+          if(localOff===0xFFFFFFFF){ localOff=Number(dv.getBigUint64(fp,true)); fp+=8; }
+          break;
+        }
+        ep += 4+sz;
+      }
+    }
+    if(!topDir && name.includes("/")) topDir = name.split("/")[0];
+    const base = name.split("/").pop().toLowerCase();
+    if(wantedBasenames.has(base) && !(base in found))
+      found[base] = {localOff, compSize, method};
+    p += 46+nameLen+extraLen+cmtLen;
+  }
+  const out = { __topDir: topDir };
+  for(const base in found){
+    const {localOff, compSize, method} = found[base];
+    if(dv.getUint32(localOff,true)!==0x04034b50) continue;
+    const nLen = dv.getUint16(localOff+26,true), eLen = dv.getUint16(localOff+28,true);
+    const start = localOff+30+nLen+eLen;
+    const bytes = buf.subarray(start, start+compSize);
+    if(method===0){ out[base] = td.decode(bytes); }
+    else if(method===8){
+      const ds = new DecompressionStream("deflate-raw");
+      const ab = await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
+      out[base] = td.decode(ab);
+    }
+  }
+  return out;
+}
+
+/* ============ ingestion ============ */
+const WANTED = new Set(["zoneconfig.xml","serviceorder.plist","componentconnections.plist","rpmsysteminfo.plist"]);
+const SKIP_DIRS = new Set(["actions","componentprofiles","images","channellogos","workflows","screens",
+  "dis","sharedusers","userlocalizations","customerfiles","bos","colorprofiles","sharedimages"]);
+
+async function handleZipFile(file){
+  const texts = await unzip(file, WANTED);
+  // job name = top-level dir in zip (the original config name) if present, else zip filename
+  const job = texts.__topDir || file.name.replace(/\.zip$/i,"").replace(/\.rpmconfig$/i,"");
+  return finishConvert(texts, job);
+}
+function finishConvert(texts, job){
+  return convert({
+    zoneconfig: texts["zoneconfig.xml"]||null,
+    serviceorder: texts["serviceorder.plist"]||null,
+    componentconnections: texts["componentconnections.plist"]||null,
+    rpmsysteminfo: texts["rpmsysteminfo.plist"]||null,
+  }, job);
+}
+function readEntries(reader){
+  return new Promise((res,rej)=>reader.readEntries(res,rej));
+}
+function fileFromEntry(entry){
+  return new Promise((res,rej)=>entry.file(res,rej));
+}
+async function walkEntry(entry, found, depth){
+  if(depth>3) return;
+  if(entry.isFile){
+    const base = entry.name.toLowerCase();
+    if(WANTED.has(base) && !(base in found)) found[base] = await fileFromEntry(entry);
+    return;
+  }
+  if(entry.isDirectory){
+    if(depth>0 && SKIP_DIRS.has(entry.name.toLowerCase())) return;
+    const reader = entry.createReader();
+    let batch;
+    do{
+      batch = await readEntries(reader);
+      for(const e of batch) await walkEntry(e, found, depth+1);
+    }while(batch.length);
+  }
+}
+async function handleDrop(dt){
+  const items = [...dt.items];
+  const entries = items.map(it=>it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+  // single file that's a zip?
+  if(entries.length===1 && entries[0].isFile && /\.(zip|rpmconfig)$/i.test(entries[0].name)){
+    const f = await fileFromEntry(entries[0]);
+    return handleZipFile(f);
+  }
+  const found = {};
+  let job = "";
+  for(const e of entries){
+    if(e.isDirectory && !job) job = e.name;
+    await walkEntry(e, found, 0);
+  }
+  if(!Object.keys(found).length && dt.files.length===1)
+    return handleZipFile(dt.files[0]);
+  const texts = {};
+  for(const base in found) texts[base] = await found[base].text();
+  return finishConvert(texts, job || "Savant Job");
+}
+async function handleDirPick(fileList){
+  const files = [...fileList];
+  const texts = {};
+  let job = "";
+  for(const f of files){
+    const rel = f.webkitRelativePath || f.name;
+    if(!job && rel.includes("/")) job = rel.split("/")[0];
+    const base = f.name.toLowerCase();
+    if(WANTED.has(base) && !(base in texts)) texts[base] = await f.text();
+  }
+  return finishConvert(texts, job || "Savant Job");
+}
+
+/* ============ UI ============ */
+const $ = id => document.getElementById(id);
+let result = null;
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._tm); t._tm = setTimeout(()=>t.classList.remove("show"), 2000);
+}
+function deliver(filename, content, mime){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([content], {type:mime}));
+  a.download = filename;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  toast("Downloaded "+filename);
+}
+const slug = s => s.replace(/[^\w\-]+/g,"-").replace(/^-+|-+$/g,"") || "job";
+
+function renderHome(){
+  $("app").innerHTML = `
+    <div style="margin-top:10px">
+      <div style="font-size:22px; font-weight:600">Savant config takeoff</div>
+      <div class="muted" style="margin-top:4px; line-height:1.55">
+        Drop a RacePoint Blueprint config. Get a SiteWalk survey with every room
+        pre-built and flagged, plus equipment + signal reference sheets.</div>
+    </div>
+    <div id="drop">
+      <div class="big">DROP .RPMCONFIG HERE</div>
+      <div class="small">zip or folder — straight from Blueprint's<br>File → Save As / config backup</div>
+      <div class="row" style="justify-content:center; margin-top:22px">
+        <button class="btn small" onclick="event.stopPropagation();$('filePick').click()">CHOOSE ZIP</button>
+        <button class="btn small" onclick="event.stopPropagation();$('dirPick').click()">CHOOSE FOLDER</button>
+      </div>
+    </div>
+    <div class="muted mono" style="margin-top:12px; font-size:11.5px; letter-spacing:.04em">
+      RUNS ENTIRELY ON THIS DEVICE — CONFIGS NEVER UPLOAD.</div>
+    <div id="errbox"></div>`;
+  const d = $("drop");
+  d.addEventListener("dragover", e=>{ e.preventDefault(); d.classList.add("over"); });
+  d.addEventListener("dragleave", ()=>d.classList.remove("over"));
+  d.addEventListener("drop", async e=>{
+    e.preventDefault(); d.classList.remove("over");
+    await runIngest(()=>handleDrop(e.dataTransfer));
+  });
+}
+async function runIngest(fn){
+  try{
+    toast("Reading config…");
+    result = await fn();
+    renderResult();
+  }catch(err){
+    const box = $("errbox");
+    if(box) box.innerHTML = `<div class="err">⚑ ${esc(err.message||err)}</div>`;
+    else toast("Couldn't read that config");
+  }
+}
+function audLabel(r){
+  if(r.audio==="5.1") return "5.1"+(r.audioFeed==="local"?" local":"");
+  if(r.audio==="2.0") return "2.0 "+(r.audioFeed==="house"?"house-fed":"local");
+  if(r.audio==="tv") return "TV speakers";
+  return "no audio";
+}
+function renderResult(){
+  const { project, edges, info, warnings, skipped, rackLines } = result;
+  const p = project;
+  const flagged = p.rooms.filter(r=>r.flagged).length;
+  let h = `
+    <div class="ovh">
+      <div class="t">${esc(p.client)}</div>
+      <div class="c">${esc(info.host||"")}<br>SAVED ${esc((info.saved||"?").slice(0,10))}</div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <table class="sheet-table">
+        <tr><td>Rooms</td><td>${p.rooms.length}</td></tr>
+        <tr><td>Rack components</td><td>${rackLines.length}</td></tr>
+        <tr><td>Cameras</td><td>${p.cameras.length}</td></tr>
+        <tr><td>Connections mapped</td><td>${edges.length}</td></tr>
+        <tr><td>Non-AV zones skipped</td><td>${skipped.length}</td></tr>
+      </table>
+    </div>`;
+  if(warnings.length)
+    h += `<div class="flags"><div class="ftitle">⚑ CONVERTER WARNINGS</div>`+
+      warnings.map(w=>`<div class="fitem">${esc(w)}</div>`).join("")+`</div>`;
+  h += `<h2>Export</h2>
+    <button class="btn primary block" onclick="dlJSON()">⬇ SITEWALK JSON — IMPORT ON SURVEYS SCREEN</button>
+    <div class="row" style="margin-top:8px">
+      <button class="btn small grow" onclick="dlCSV('equipment')">EQUIPMENT CSV</button>
+      <button class="btn small grow" onclick="dlCSV('matrix')">ZONE×SOURCE CSV</button>
+      <button class="btn small grow" onclick="dlMD()">SUMMARY MD</button>
+    </div>`;
+  h += `<h2>Rooms (${p.rooms.length})${flagged?` — ⚑ ${flagged}`:""}</h2>`;
+  p.rooms.forEach((r,i)=>{
+    const bits = [r.tv?"TV":"no TV", audLabel(r)];
+    if(r.isTheater) bits.push("THEATER");
+    if(r.localSources.length) bits.push("local: "+r.localSources.join(", "));
+    h += `<div class="item"><div class="idx${r.flagged?" flag":""}">${i+1}</div>
+      <div class="grow"><div class="title">${esc(r.name)}</div>
+      <div class="sub">${esc(bits.join(" — "))}</div></div>
+      ${r.flagged?'<div class="fl">⚑</div>':""}</div>`;
+  });
+  h += `<h2>Rack / shared equipment (${rackLines.length})</h2><div class="card">`+
+    rackLines.map(l=>{
+      const m = l.match(/^(.*) \(([^)]+)\)$/);
+      return `<div class="gearline">${esc(m?m[1]:l)} <span class="cat">${esc(m?m[2].toUpperCase():"")}</span></div>`;
+    }).join("")+`</div>`;
+  if(p.cameras.length)
+    h += `<h2>Cameras (${p.cameras.length})</h2><div class="card">`+
+      p.cameras.map(c=>`<div class="gearline">${esc(c.location)} <span class="cat">${esc(c.type.toUpperCase())}</span></div>`).join("")+`</div>`;
+  if(skipped.length)
+    h += `<h2>Skipped — no AV (${skipped.length})</h2>
+      <div class="muted" style="line-height:1.7">${esc([...skipped].sort().join(", "))}</div>`;
+  h += `<div class="rule"></div>
+    <button class="btn block" style="margin-top:14px" onclick="renderHome()">← NEW CONVERSION</button>`;
+  $("app").innerHTML = h;
+  window.scrollTo(0,0);
+}
+function dlJSON(){
+  deliver(slug(result.project.client)+"-sitewalk.json",
+    JSON.stringify(result.project,null,2), "application/json");
+}
+function dlCSV(which){
+  if(which==="equipment")
+    deliver(slug(result.project.client)+"-equipment.csv", buildEquipmentCSV(result.zones), "text/csv");
+  else
+    deliver(slug(result.project.client)+"-zone-sources.csv", buildMatrixCSV(result.services), "text/csv");
+}
+function dlMD(){
+  deliver(slug(result.project.client)+"-summary.md", buildSummaryMD(result), "text/markdown");
+}
+$("filePick").addEventListener("change", e=>{
+  if(e.target.files[0]) runIngest(()=>handleZipFile(e.target.files[0]));
+  e.target.value = "";
+});
+$("dirPick").addEventListener("change", e=>{
+  if(e.target.files.length) runIngest(()=>handleDirPick(e.target.files));
+  e.target.value = "";
+});
+renderHome();
+// exposed for testing
+window.BP = { convert, unzip, handleZipFile, finishConvert };
+</script>
+</body>
+</html>
