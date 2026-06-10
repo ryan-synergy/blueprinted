@@ -545,6 +545,93 @@ function buildMatrixCSV(services){
     rows.push([z, ...all.map(s=>services[z].includes(s)?"✓":"")]);
   return rows.map(csvRow).join("\n")+"\n";
 }
+function takeoffCounts(p, res){
+  const rms = p.rooms, count = fn => rms.filter(fn).length;
+  return {
+    theaterRooms: count(r=>r.isTheater),
+    surroundZonesLocalAVR: count(r=>r.audio==="5.1" && !r.isTheater),
+    twoChHouseAmp: count(r=>r.audio==="2.0" && r.audioFeed==="house"),
+    twoChLocalAmp: count(r=>r.audio==="2.0" && r.audioFeed==="local"),
+    tvOnlyRooms: count(r=>r.tv && (r.audio==="tv"||r.audio==="none")),
+    tvsTotal: count(r=>r.tv),
+    audioOnlyZones: count(r=>!r.tv && r.audio!=="none"),
+    cameras: p.cameras.length,
+    rackComponents: res.rackComps.length,
+    connectionsMapped: res.edges.length,
+    nonAvZonesSkipped: res.skipped.length,
+  };
+}
+function buildTakeoffJSON(res){
+  const { project:p, edges, info, skipped, rackComps, roomMetas, job, zones } = res;
+  const byName = {};
+  for(const z of zones) for(const c of z.components) byName[c.name] = z.name;
+  return JSON.stringify({
+    generator: "Blueprinted",
+    converted: p.date,
+    client: p.client,
+    savantConfig: job,
+    host: info.host||"",
+    configSaved: (info.saved||"").slice(0,10),
+    note: "Everything here is the OLD system as programmed — verify on walk",
+    counts: takeoffCounts(p, res),
+    rooms: p.rooms.map((r,i)=>{
+      const m = roomMetas[i]||{displays:[],avrs:[],amps:[],speakers:[],localSources:[],sourcesAvail:[],others:[]};
+      return { n:i+1, name:r.name, zoneType:zoneTypeLabel(r), tv:r.tv,
+        oldTv:m.displays.map(x=>({make:x.man, model:x.model, size:x.size})),
+        videoFeed:r.videoFeed, avrs:m.avrs, amps:m.amps, speakers:m.speakers,
+        inRoomSources:m.localSources, sourcesAvailable:m.sourcesAvail,
+        otherSystems:m.others, flags:roomFlagList(r) };
+    }),
+    rack: rackComps.map(c=>({component:c.name, manufacturer:c.manufacturer, model:c.model,
+      category:categoryOf(c.device_class, c.manufacturer), deviceClass:c.device_class})),
+    rackSourceCounts: Object.fromEntries(Object.entries(p.rack.sources).filter(([k,v])=>v)),
+    cameras: p.cameras.map(c=>({location:c.location, type:c.type})),
+    nonAvZones: [...skipped].sort(),
+    connections: edges.map(([s,k,f])=>({source:s, sourceZone:byName[s]||"?",
+      sink:k, sinkZone:byName[k]||"?", signal:f})),
+  }, null, 2);
+}
+function buildNotesText(res){
+  const { project:p, info, skipped, rackComps, roomMetas } = res;
+  const c = takeoffCounts(p, res);
+  const L = [];
+  L.push("BLUEPRINTED TAKEOFF — "+p.client);
+  L.push("Savant host: "+(info.host||"?")+" · config saved "+(info.saved||"?").slice(0,10));
+  L.push("Old system as programmed — verify on walk", "");
+  L.push("SYSTEM");
+  L.push("  Theater "+c.theaterRooms+" · Surround "+c.surroundZonesLocalAVR+
+    " · 2-ch house "+c.twoChHouseAmp+" · 2-ch local "+c.twoChLocalAmp+
+    " · TV-only "+c.tvOnlyRooms);
+  L.push("  TVs "+c.tvsTotal+" · audio-only zones "+c.audioOnlyZones+
+    " · cameras "+c.cameras+" · rack pieces "+c.rackComponents, "");
+  L.push("ROOMS ("+p.rooms.length+")");
+  p.rooms.forEach((r,i)=>{
+    const m = roomMetas[i]||{displays:[],avrs:[],amps:[],speakers:[],localSources:[],sourcesAvail:[],others:[]};
+    L.push((i+1)+". "+r.name+" — "+zoneTypeLabel(r));
+    if(m.displays.length) L.push("   TV: "+m.displays.map(x=>`${x.man} ${x.model}`+(x.size?` (${x.size}\")`:"")).join("; "));
+    if(m.avrs.length) L.push("   AVR: "+m.avrs.join("; "));
+    if(m.amps.length) L.push("   Amp: "+m.amps.join("; "));
+    if(m.speakers.length) L.push("   Speakers: "+m.speakers.join("; "));
+    if(m.localSources.length) L.push("   In-room sources: "+m.localSources.join("; "));
+    if(m.sourcesAvail.length) L.push("   Could watch/hear: "+m.sourcesAvail.join(", "));
+    if(m.others.length) L.push("   Also: "+m.others.join("; "));
+    const fl = roomFlagList(r);
+    if(fl.length) L.push("   ⚑ "+fl.join(" · "));
+  });
+  L.push("", "RACK ("+rackComps.length+")");
+  for(const cc of rackComps)
+    L.push("   "+cc.name+" — "+cc.manufacturer+" "+cc.model+
+      " ["+categoryOf(cc.device_class, cc.manufacturer)+"]");
+  const srcs = Object.entries(p.rack.sources).filter(([k,v])=>v);
+  if(srcs.length) L.push("   Sources: "+srcs.map(([k,v])=>k+" x"+v).join(", ")+" (confirm)");
+  if(p.cameras.length){
+    L.push("", "CAMERAS ("+p.cameras.length+")");
+    p.cameras.forEach(cc=>L.push("   "+cc.location+" — "+cc.type));
+  }
+  if(skipped.length)
+    L.push("", "NON-AV ZONES ("+skipped.length+"): "+[...skipped].sort().join(", "));
+  return L.join("\n");
+}
 function buildSummaryMD(res){
   const { project, zones, services, edges, info, warnings, job } = res;
   const userZones = zones.filter(z=>zoneKind(z)==="room" && zoneHasAv(z, services[z.name]||[]));
@@ -837,6 +924,10 @@ function renderResult(){
       <button class="btn small grow" onclick="dlCSV('takeoff')">TAKEOFF CSV</button>
       <button class="btn small grow" onclick="dlCSV('matrix')">ZONE×SOURCE CSV</button>
       <button class="btn small grow" onclick="dlMD()">SUMMARY MD</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn small grow" onclick="dlTakeoffJSON()">TAKEOFF JSON</button>
+      <button class="btn small grow" onclick="copyNotes()">⧉ COPY FOR NOTES</button>
     </div>`;
   h += `<h2>Rooms (${p.rooms.length})${flagged?` — ⚑ ${flagged}`:""}</h2>`;
   p.rooms.forEach((r,i)=>{
@@ -876,6 +967,14 @@ function dlCSV(which){
 }
 function dlMD(){
   deliver(slug(result.project.client)+"-summary.md", buildSummaryMD(result), "text/markdown");
+}
+function dlTakeoffJSON(){
+  deliver(slug(result.project.client)+"-takeoff.json", buildTakeoffJSON(result), "application/json");
+}
+async function copyNotes(){
+  const text = buildNotesText(result);
+  try{ await navigator.clipboard.writeText(text); toast("Copied — paste into Notes"); }
+  catch(e){ prompt("Copy below:", text); }
 }
 $("filePick").addEventListener("change", e=>{
   if(e.target.files[0]) runIngest(()=>handleZipFile(e.target.files[0]));
