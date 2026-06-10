@@ -297,6 +297,17 @@ function classifyRoom(zone, sources){
 
   const r = newRoom(roomName(zone.name));
   const notes = [];
+  // structured detail for the takeoff CSV (not exported into SiteWalk JSON)
+  const meta = {
+    zone: zone.name,
+    displays: displays.map(d=>({name:d.name, man:d.manufacturer, model:d.model, size:tvSizeFromModel(d.model)})),
+    avrs: avrs.map(a=>`${a.manufacturer} ${a.model}`),
+    amps: amps.map(a=>`${a.manufacturer} ${a.model}`),
+    speakers: [...surround,...stereo].map(s=>`${s.name} (${s.manufacturer} ${s.model})`),
+    localSources: localSrc.map(c=>`${c.name} (${c.manufacturer} ${c.model})`),
+    sourcesAvail: (sources||[]).map(s=>s.trim()),
+    others: [],
+  };
 
   r.tv = displays.length>0;
   if(displays.length){
@@ -345,12 +356,30 @@ function classifyRoom(zone, sources){
   for(const c of comps){
     if(handled.has(c)) continue;
     const cat = categoryOf(c.device_class, c.manufacturer);
-    if(["Lighting","Climate","Relay / Lift","Pool / Spa","Control","Garage","Security","Camera","Entry","Power / Trigger"].includes(cat))
+    if(["Lighting","Climate","Relay / Lift","Pool / Spa","Control","Garage","Security","Camera","Entry","Power / Trigger"].includes(cat)){
       notes.push(`${cat}: ${c.name} (${c.manufacturer} ${c.model})`);
+      meta.others.push(`${cat}: ${c.name} (${c.manufacturer} ${c.model})`);
+    }
   }
   if(sources && sources.length) notes.push("Could watch/hear: "+sources.map(s=>s.trim()).join(", "));
   r.notes = notes.join("\n");
-  return r;
+  return { room:r, meta };
+}
+function zoneTypeLabel(r){
+  if(r.isTheater) return "Theater — "+r.audio+(r.audioFeed==="local"?" local":"");
+  if(r.audio==="5.1") return "Surround 5.1 — local";
+  if(r.audio==="2.0") return r.audioFeed==="house" ? "2-ch — house amp" : "2-ch — local amp";
+  if(r.audio==="tv") return r.tv ? "TV only" : "—";
+  if(r.audio==="none") return r.tv ? "TV only" : "No AV endpoints";
+  return r.audio;
+}
+function roomFlagList(r){
+  const f = [];
+  if(r.tv && !r.tvSize) f.push("TV size TBD");
+  f.push("Wiring unknown");
+  if(r.isTheater && !r.thDisplay) f.push("Theater display type?");
+  if(r.flagged) f.push("Verify on walk");
+  return f;
 }
 
 function convert(files, jobName){
@@ -376,7 +405,7 @@ function convert(files, jobName){
   const project = newProject();
   project.client = cleanClientName(job);
 
-  const rackComps = [], hostNotes = [], skipped = [];
+  const rackComps = [], hostNotes = [], skipped = [], roomMetas = [];
   for(const z of zones){
     const kind = zoneKind(z);
     for(const c of z.components){
@@ -392,7 +421,9 @@ function convert(files, jobName){
     }
     if(kind==="rack"){ rackComps.push(...z.components); continue; }
     if(!zoneHasAv(z, services[z.name]||[])){ skipped.push(z.name); continue; }
-    project.rooms.push(classifyRoom(z, services[z.name]||[]));
+    const { room, meta } = classifyRoom(z, services[z.name]||[]);
+    project.rooms.push(room);
+    roomMetas.push(meta);
   }
 
   project.notes = `Imported from Savant config '${job}' (host: ${info.host}, saved ${info.saved}).\n`+
@@ -424,18 +455,86 @@ function convert(files, jobName){
   }
   project.habits = [...habits].sort();
 
-  return { project, zones, services, edges, info, warnings, skipped, rackLines, job };
+  return { project, zones, services, edges, info, warnings, skipped, rackLines,
+           rackComps, roomMetas, job };
 }
 
 /* ============ output builders ============ */
 function csvCell(v){ v=String(v==null?"":v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
 function csvRow(cells){ return cells.map(csvCell).join(","); }
 
-function buildEquipmentCSV(zones){
-  const rows = [["Zone","Component","Manufacturer","Model","Category","Device class","Shared"]];
-  for(const z of zones) for(const c of z.components)
-    rows.push([z.name, c.name, c.manufacturer, c.model,
-      categoryOf(c.device_class, c.manufacturer), c.device_class, c.shared?"yes":""]);
+function buildTakeoffCSV(res){
+  const { project:p, edges, info, skipped, rackComps, roomMetas, job, zones } = res;
+  const rows = [];
+  rows.push(["BLUEPRINTED TAKEOFF"]);
+  rows.push(["Client", p.client], ["Savant config", job], ["Host", info.host||""],
+    ["Config saved", (info.saved||"").slice(0,10)], ["Converted", p.date],
+    ["Note","Everything below is the OLD system as programmed — verify on walk"], []);
+
+  // system counts
+  const rms = p.rooms;
+  const count = fn => rms.filter(fn).length;
+  rows.push(["SYSTEM COUNTS"]);
+  rows.push(["Theater rooms", count(r=>r.isTheater)]);
+  rows.push(["Surround zones (local AVR)", count(r=>r.audio==="5.1" && !r.isTheater)]);
+  rows.push(["2-ch zones — house amp", count(r=>r.audio==="2.0" && r.audioFeed==="house")]);
+  rows.push(["2-ch zones — local amp", count(r=>r.audio==="2.0" && r.audioFeed==="local")]);
+  rows.push(["TV-only rooms", count(r=>r.tv && (r.audio==="tv"||r.audio==="none"))]);
+  rows.push(["TVs total", count(r=>r.tv)]);
+  rows.push(["Audio-only zones (no TV)", count(r=>!r.tv && !["none"].includes(r.audio))]);
+  rows.push(["Cameras", p.cameras.length]);
+  rows.push(["Rack components", rackComps.length]);
+  rows.push(["Connections mapped", edges.length]);
+  rows.push(["Non-AV zones (not rooms)", skipped.length], []);
+
+  // rooms — one detailed row each
+  rows.push(["ROOMS ("+rms.length+")"]);
+  rows.push(["#","Room","Zone type","TV","Old TV","Old size","Video feed",
+    "AVR / receiver","In-room amp","Speakers","In-room sources",
+    "Sources available","Other systems in room","Flags","Notes"]);
+  rms.forEach((r,i)=>{
+    const m = roomMetas[i] || {displays:[],avrs:[],amps:[],speakers:[],localSources:[],sourcesAvail:[],others:[]};
+    const d = m.displays[0];
+    rows.push([ i+1, r.name, zoneTypeLabel(r), r.tv?"Yes":"No",
+      m.displays.map(x=>`${x.man} ${x.model}`).join("; "),
+      m.displays.map(x=>x.size?x.size+'"':"?").join("; "),
+      r.videoFeed==="matrix"?"On system (was distributed)":(r.videoFeed==="local"?"Local":"None"),
+      m.avrs.join("; "), m.amps.join("; "), m.speakers.join("; "),
+      m.localSources.join("; "), m.sourcesAvail.join("; "), m.others.join("; "),
+      roomFlagList(r).join("; "),
+      r.flagged ? "Verify — see room notes in SiteWalk import" : "" ]);
+  });
+  rows.push([]);
+
+  // rack — full detail
+  rows.push(["RACK / SHARED EQUIPMENT ("+rackComps.length+")"]);
+  rows.push(["Component","Manufacturer","Model","Category","Device class"]);
+  for(const c of rackComps)
+    rows.push([c.name, c.manufacturer, c.model, categoryOf(c.device_class, c.manufacturer), c.device_class]);
+  rows.push([]);
+  const src = Object.entries(p.rack.sources).filter(([k,v])=>v);
+  rows.push(["RACK SOURCE COUNTS (confirm on walk)"]);
+  src.forEach(([k,v])=>rows.push([k, v]));
+  rows.push([]);
+
+  if(p.cameras.length){
+    rows.push(["CAMERAS ("+p.cameras.length+")"]);
+    rows.push(["Location / name","Type"]);
+    p.cameras.forEach(c=>rows.push([c.location, c.type]));
+    rows.push([]);
+  }
+  if(skipped.length){
+    rows.push(["NON-AV ZONES — lighting / relays / cameras only ("+skipped.length+")"]);
+    rows.push([[...skipped].sort().join("; ")]);
+    rows.push([]);
+  }
+  if(edges.length){
+    const byName = {};
+    for(const z of zones) for(const c of z.components) byName[c.name] = z.name;
+    rows.push(["CONNECTIONS AS PROGRAMMED ("+edges.length+")"]);
+    rows.push(["Source","Source zone","Sink","Sink zone","Signal"]);
+    for(const [s,k,f] of edges) rows.push([s, byName[s]||"?", k, byName[k]||"?", f]);
+  }
   return rows.map(csvRow).join("\n")+"\n";
 }
 function buildMatrixCSV(services){
@@ -735,7 +834,7 @@ function renderResult(){
   h += `<h2>Export</h2>
     <button class="btn primary block" onclick="dlJSON()">⬇ SITEWALK JSON — IMPORT ON SURVEYS SCREEN</button>
     <div class="row" style="margin-top:8px">
-      <button class="btn small grow" onclick="dlCSV('equipment')">EQUIPMENT CSV</button>
+      <button class="btn small grow" onclick="dlCSV('takeoff')">TAKEOFF CSV</button>
       <button class="btn small grow" onclick="dlCSV('matrix')">ZONE×SOURCE CSV</button>
       <button class="btn small grow" onclick="dlMD()">SUMMARY MD</button>
     </div>`;
@@ -770,8 +869,8 @@ function dlJSON(){
     JSON.stringify(result.project,null,2), "application/json");
 }
 function dlCSV(which){
-  if(which==="equipment")
-    deliver(slug(result.project.client)+"-equipment.csv", buildEquipmentCSV(result.zones), "text/csv");
+  if(which==="takeoff")
+    deliver(slug(result.project.client)+"-takeoff.csv", buildTakeoffCSV(result), "text/csv");
   else
     deliver(slug(result.project.client)+"-zone-sources.csv", buildMatrixCSV(result.services), "text/csv");
 }
