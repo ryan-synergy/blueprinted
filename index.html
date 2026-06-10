@@ -235,6 +235,9 @@ function parsePlist(text){
 function parseZones(xmlText){
   const doc = new DOMParser().parseFromString(xmlText,"application/xml");
   if(doc.querySelector("parsererror")) throw new Error("zoneConfig.xml parse error");
+  const zm = doc.querySelector("zone_config > zone_master");
+  const hostMaster = zm ? { manufacturer:zm.getAttribute("manufacturer")||"",
+    model:zm.getAttribute("model")||"", chassis:zm.getAttribute("chassis_id")||"" } : null;
   const zones = [];
   doc.querySelectorAll("zone").forEach(z=>{
     const comps = [];
@@ -247,7 +250,7 @@ function parseZones(xmlText){
     });
     zones.push({ name:z.getAttribute("name")||"?", type:z.getAttribute("type")||"", components:comps });
   });
-  return zones;
+  return { zones, hostMaster };
 }
 function parseServices(plist){
   const out = {};
@@ -385,21 +388,37 @@ function roomFlagList(r){
 function convert(files, jobName){
   // files: { zoneconfig, serviceorder, componentconnections, rpmsysteminfo } (text or null)
   if(!files.zoneconfig) throw new Error("No zoneConfig.xml found — is this a Savant .rpmConfig?");
-  const warnings = [];
-  const zones = parseZones(files.zoneconfig);
-  let services = {}, edges = [], info = {host:"", saved:"", tz:""};
+  const warnings = [], sysNotes = [];
+  const { zones, hostMaster } = parseZones(files.zoneconfig);
+  let services = {}, edges = [];
   try{ services = parseServices(files.serviceorder ? parsePlist(files.serviceorder) : null); }
   catch(e){ warnings.push("serviceOrder.plist unreadable — zone×source matrix empty"); }
   if(!files.serviceorder) warnings.push("serviceOrder.plist missing — zone×source matrix empty");
   try{ edges = parseConnections(files.componentconnections ? parsePlist(files.componentconnections) : null); }
   catch(e){ warnings.push("componentConnections.plist unreadable — no connection list"); }
   if(!files.componentconnections) warnings.push("componentConnections.plist missing — no connection list");
-  try{
-    if(files.rpmsysteminfo){
-      const d = parsePlist(files.rpmsysteminfo);
-      info = {host:d.RPMSystemName||"", saved:d.SaveTimeStampKey||"", tz:d.RPMTimeZone||""};
-    }
-  }catch(e){}
+  let sys = {}, docInfo = {};
+  try{ if(files.rpmsysteminfo) sys = parsePlist(files.rpmsysteminfo)||{}; }catch(e){}
+  try{ if(files.documentinfo) docInfo = parsePlist(files.documentinfo)||{}; }catch(e){}
+  if(!files.documentinfo) warnings.push("documentInfo.plist missing — no Blueprint version / license info");
+  const info = {
+    host: sys.RPMSystemName||"", saved: sys.SaveTimeStampKey||"", tz: sys.RPMTimeZone||"",
+    hostModel: hostMaster ? (hostMaster.manufacturer+" "+hostMaster.model).trim() : "",
+    hostUid: (hostMaster && hostMaster.chassis) || sys.RPMZoneMasterUID || "",
+    bpVersion: String(docInfo.RPMAppDocumentBlueprintVersionKey||""),
+    bpBuild: String(docInfo.RPMAppDocumentBlueprintBuildNumberKey||""),
+    createdWith: String(docInfo.RPMAppDocumentCreationVersionAndBuildNumberKey||""),
+    createdDate: String(docInfo.RPMAppDocumentCreationDateKey||"").slice(0,10),
+    author: String(docInfo.RPMAppDocumentAuthorKey||""),
+    editor: String(docInfo.RPMAppDocumentEditorKey||""),
+    license: String(docInfo.RPMDocBlueprintLicense||""),
+  };
+  // host / version advisories (heuristic — Ryan applies upgrade judgment)
+  if(/series 3|smart host|rosie/i.test(info.hostModel))
+    sysNotes.push("Legacy host ("+info.hostModel+") — hardware upgrade likely required for current da Vinci");
+  const major = parseInt(info.bpVersion,10);
+  if(major && major < 10)
+    sysNotes.push("Config saved with Blueprint "+info.bpVersion+" — several major versions behind current");
 
   const job = jobName.replace(/\.rpmconfig$/i,"");
   const project = newProject();
@@ -427,6 +446,9 @@ function convert(files, jobName){
   }
 
   project.notes = `Imported from Savant config '${job}' (host: ${info.host}, saved ${info.saved}).\n`+
+    `Savant: ${info.hostModel||"?"} · UID ${info.hostUid||"?"} · Blueprint ${info.bpVersion||"?"}`+
+    (info.createdWith?` (originally ${info.createdWith}, ${info.createdDate})`:"")+".\n"+
+    (sysNotes.length ? sysNotes.map(n=>"⚑ "+n).join("\n")+"\n" : "")+
     "All gear/wiring shown is the OLD system — verify on walk.";
   if(skipped.length)
     project.notes += `\nNon-AV Savant zones not imported as rooms (${skipped.length} — lighting/relays/cameras only): `+
@@ -455,8 +477,8 @@ function convert(files, jobName){
   }
   project.habits = [...habits].sort();
 
-  return { project, zones, services, edges, info, warnings, skipped, rackLines,
-           rackComps, roomMetas, job };
+  return { project, zones, services, edges, info, warnings, sysNotes, skipped,
+           rackLines, rackComps, roomMetas, job };
 }
 
 /* ============ output builders ============ */
@@ -467,9 +489,17 @@ function buildTakeoffCSV(res){
   const { project:p, edges, info, skipped, rackComps, roomMetas, job, zones } = res;
   const rows = [];
   rows.push(["BLUEPRINTED TAKEOFF"]);
-  rows.push(["Client", p.client], ["Savant config", job], ["Host", info.host||""],
+  rows.push(["Client", p.client], ["Savant config", job],
+    ["System name", info.host||""], ["Host", info.hostModel||""],
+    ["Host UID", info.hostUid||""],
+    ["Blueprint saved with", info.bpVersion + (info.bpBuild?" ("+info.bpBuild+")":"")],
+    ["Originally created", info.createdWith + (info.createdDate?" — "+info.createdDate:"")],
+    ["Programmer", [info.author,info.editor].filter(Boolean).join(" / ")],
+    ["Blueprint license", info.license||""],
     ["Config saved", (info.saved||"").slice(0,10)], ["Converted", p.date],
-    ["Note","Everything below is the OLD system as programmed — verify on walk"], []);
+    ["Note","Everything below is the OLD system as programmed — verify on walk"]);
+  (res.sysNotes||[]).forEach(n=>rows.push(["⚑ "+n]));
+  rows.push([]);
 
   // system counts
   const rms = p.rooms;
@@ -570,7 +600,18 @@ function buildTakeoffJSON(res){
     converted: p.date,
     client: p.client,
     savantConfig: job,
-    host: info.host||"",
+    system: {
+      name: info.host||"",
+      hostModel: info.hostModel||"",
+      hostUid: info.hostUid||"",
+      blueprintVersion: info.bpVersion||"",
+      blueprintBuild: info.bpBuild||"",
+      originallyCreatedWith: info.createdWith||"",
+      originallyCreatedDate: info.createdDate||"",
+      programmer: [info.author,info.editor].filter(Boolean).join(" / "),
+      blueprintLicense: info.license||"",
+      advisories: res.sysNotes||[],
+    },
     configSaved: (info.saved||"").slice(0,10),
     note: "Everything here is the OLD system as programmed — verify on walk",
     counts: takeoffCounts(p, res),
@@ -596,7 +637,11 @@ function buildNotesText(res){
   const c = takeoffCounts(p, res);
   const L = [];
   L.push("BLUEPRINTED TAKEOFF — "+p.client);
-  L.push("Savant host: "+(info.host||"?")+" · config saved "+(info.saved||"?").slice(0,10));
+  L.push("Host: "+(info.hostModel||"?")+" · UID "+(info.hostUid||"?"));
+  L.push("Blueprint "+(info.bpVersion||"?")+
+    (info.createdWith?" · originally "+info.createdWith+" ("+info.createdDate+")":"")+
+    " · config saved "+(info.saved||"?").slice(0,10));
+  (res.sysNotes||[]).forEach(n=>L.push("⚑ "+n));
   L.push("Old system as programmed — verify on walk", "");
   L.push("SYSTEM");
   L.push("  Theater "+c.theaterRooms+" · Surround "+c.surroundZonesLocalAVR+
@@ -641,8 +686,10 @@ function buildSummaryMD(res){
   for(const z of zones) for(const c of z.components) byName[c.name] = z.name;
   const L = [];
   L.push(`# Takeoff — ${job}`,"");
-  L.push(`Source: Savant Blueprint config, host **${info.host||"?"}**, saved ${info.saved||"?"}. `+
-    `Converted by Blueprinted ${new Date().toISOString().slice(0,10)}.`,"");
+  L.push(`Source: Savant Blueprint config, host **${info.hostModel||"?"}** ("${info.host||"?"}", UID ${info.hostUid||"?"}), `+
+    `Blueprint ${info.bpVersion||"?"}${info.createdWith?` (originally ${info.createdWith}, ${info.createdDate})`:""}, `+
+    `saved ${info.saved||"?"}. Converted by Blueprinted ${new Date().toISOString().slice(0,10)}.`,"");
+  (res.sysNotes||[]).forEach(n=>L.push(`**⚑ ${n}**`,""));
   L.push("Everything below is the OLD system as programmed — logical design, not verified "+
     "physical install. Use it as requirements + reference; the walk confirms reality.");
   if(warnings.length){ L.push("","**Converter warnings:** "+warnings.join("; ")); }
@@ -761,7 +808,7 @@ async function unzip(file, wantedBasenames){
 }
 
 /* ============ ingestion ============ */
-const WANTED = new Set(["zoneconfig.xml","serviceorder.plist","componentconnections.plist","rpmsysteminfo.plist"]);
+const WANTED = new Set(["zoneconfig.xml","serviceorder.plist","componentconnections.plist","rpmsysteminfo.plist","documentinfo.plist"]);
 const SKIP_DIRS = new Set(["actions","componentprofiles","images","channellogos","workflows","screens",
   "dis","sharedusers","userlocalizations","customerfiles","bos","colorprofiles","sharedimages"]);
 
@@ -777,6 +824,7 @@ function finishConvert(texts, job){
     serviceorder: texts["serviceorder.plist"]||null,
     componentconnections: texts["componentconnections.plist"]||null,
     rpmsysteminfo: texts["rpmsysteminfo.plist"]||null,
+    documentinfo: texts["documentinfo.plist"]||null,
   }, job);
 }
 function readEntries(reader){
@@ -898,15 +946,29 @@ function audLabel(r){
   return "no audio";
 }
 function renderResult(){
-  const { project, edges, info, warnings, skipped, rackLines } = result;
+  const { project, edges, info, warnings, sysNotes, skipped, rackLines } = result;
   const p = project;
   const flagged = p.rooms.filter(r=>r.flagged).length;
   let h = `
     <div class="ovh">
       <div class="t">${esc(p.client)}</div>
-      <div class="c">${esc(info.host||"")}<br>SAVED ${esc((info.saved||"?").slice(0,10))}</div>
+      <div class="c">${esc(info.hostModel||info.host||"")}<br>SAVED ${esc((info.saved||"?").slice(0,10))}</div>
+    </div>`;
+  if(sysNotes.length)
+    h += `<div class="flags" style="margin-top:12px"><div class="ftitle">⚑ HOST / VERSION</div>`+
+      sysNotes.map(w=>`<div class="fitem">${esc(w)}</div>`).join("")+`</div>`;
+  h += `<h2>System</h2>
+    <div class="card">
+      <table class="sheet-table">
+        <tr><td>Host</td><td>${esc(info.hostModel||"?")}</td></tr>
+        <tr><td>Host UID</td><td>${esc(info.hostUid||"?")}</td></tr>
+        <tr><td>Blueprint saved with</td><td>${esc(info.bpVersion||"?")}${info.bpBuild?esc(" ("+info.bpBuild+")"):""}</td></tr>
+        <tr><td>Originally created</td><td>${esc(info.createdWith||"?")}${info.createdDate?esc(" — "+info.createdDate):""}</td></tr>
+        <tr><td>Programmer</td><td>${esc([info.author,info.editor].filter(Boolean).join(" / ")||"?")}</td></tr>
+        <tr><td>Blueprint license</td><td style="font-size:11.5px">${esc(info.license||"?")}</td></tr>
+      </table>
     </div>
-    <div class="card" style="margin-top:12px">
+    <div class="card">
       <table class="sheet-table">
         <tr><td>Rooms</td><td>${p.rooms.length}</td></tr>
         <tr><td>Rack components</td><td>${rackLines.length}</td></tr>
