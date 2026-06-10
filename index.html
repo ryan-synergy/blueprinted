@@ -91,7 +91,7 @@
 </div>
 <div id="app"></div>
 <div id="toast"></div>
-<input type="file" id="filePick" accept=".zip,.rpmconfig,.rpmConfig" style="display:none">
+<input type="file" id="filePick" style="display:none">
 <input type="file" id="dirPick" webkitdirectory style="display:none">
 <script>
 "use strict";
@@ -676,10 +676,11 @@ function renderHome(){
     </div>
     <div id="drop">
       <div class="big">DROP .RPMCONFIG HERE</div>
-      <div class="small">zip or folder — straight from Blueprint's<br>File → Save As / config backup</div>
+      <div class="small">drag the config in — zipped or as-is.<br>
+        On a Mac, a .rpmConfig is a folder: use the folder button if browsing.</div>
       <div class="row" style="justify-content:center; margin-top:22px">
+        <button class="btn small" onclick="event.stopPropagation();$('dirPick').click()">CHOOSE .RPMCONFIG (FOLDER)</button>
         <button class="btn small" onclick="event.stopPropagation();$('filePick').click()">CHOOSE ZIP</button>
-        <button class="btn small" onclick="event.stopPropagation();$('dirPick').click()">CHOOSE FOLDER</button>
       </div>
     </div>
     <div class="muted mono" style="margin-top:12px; font-size:11.5px; letter-spacing:.04em">
