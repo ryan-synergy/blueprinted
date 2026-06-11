@@ -677,6 +677,66 @@ function buildNotesText(res){
     L.push("", "NON-AV ZONES ("+skipped.length+"): "+[...skipped].sort().join(", "));
   return L.join("\n");
 }
+function buildAIPrompt(res){
+  const { project:p, info } = res;
+  return `# AV system redesign — ${p.client}
+
+You are helping a custom-integration dealer design a **replacement** home AV / automation system. Below is a structured takeoff of the client's EXISTING system, extracted from its Savant RacePoint Blueprint config. Everything in it is the OLD system as programmed — gear ages, zone capabilities, and signal flow are facts; physical wiring is unverified.
+
+## Dealer design conventions (use these)
+- Control: Savant. Video distribution: AVPro Edge MXNet (AVoIP — one encoder per rack source, one decoder per on-system TV).
+- Audio: 2-ch rooms ride house amplifier channels at the rack; 5.1 and up means a local AVR. Ceiling pairs are the default 2-ch speaker; subs usually in-wall.
+- Sources live in the head-end rack (Apple TV / DirecTV / Dish / Roku / Kaleidescape); guest-room gear is sometimes local behind the TV.
+- The old zone map is a requirements doc: rooms keep their capabilities unless noted below.
+
+## CLIENT INPUT — edit before sending
+- Client priorities: «add»
+- Budget tier: «add»
+- Rooms to add / drop / change: «add»
+
+## How to read the takeoff JSON
+- \`system\` — old host + software. \`hostModel\`/\`hostUid\` identify the hardware (licensing keys off the UID); \`blueprintVersion\` is the software it's on; \`advisories\` flag legacy hosts / old versions. Always state whether the host must be replaced.
+- \`counts\` — zone totals by type (theater / surround / 2-ch house / 2-ch local / TV-only).
+- \`rooms[]\` — \`zoneType\` is the old room's role; \`oldTv\` has make/model/size (pre-2018 panels are presumed replaced); \`avrs\`/\`amps\`/\`speakers\` are old audio gear with models; \`inRoomSources\` sat in the room, \`sourcesAvailable\` is everything the zone could watch/hear via distribution; \`otherSystems\` is non-AV (lighting/lifts/pool — quote conversations, not AV design); \`flags\` are unknowns to verify on the site walk.
+- \`rack[]\` + \`rackSourceCounts\` — old head-end inventory and source counts.
+- \`connections[]\` — old signal flow (source → sink with format), useful for understanding distribution topology.
+
+## Your task
+Design the replacement system room by room. For each room: keep/replace calls on existing gear (with reasoning), the new zone type, and new gear classes (exact SKUs only where the dealer conventions imply them). Then size the rack: MXNet encoder/decoder counts, house-amp channel count, AVR count, source lineup. State the host/software upgrade path from \`system\`. End with open questions the dealer must resolve on the walk (seed from \`flags\`).
+
+## Response format
+Reply with a short markdown design narrative first, then a single JSON code block in exactly this shape:
+
+\`\`\`json
+{
+  "summary": "two-sentence overview of the proposed system",
+  "hostRecommendation": "keep/replace host + software path",
+  "rooms": [
+    {
+      "name": "room name from the takeoff",
+      "zoneType": "proposed: theater | surround 5.1 | 2-ch house | 2-ch local | TV only | audio only",
+      "keep": ["existing gear worth keeping, with model"],
+      "replace": [{ "old": "make model", "new": "gear class or SKU", "why": "one line" }],
+      "add": ["net-new gear classes"],
+      "notes": "anything the dealer should know"
+    }
+  ],
+  "rack": {
+    "videoDistribution": "MXNet plan in one line",
+    "encoders": 0, "decoders": 0,
+    "houseAmpChannels": 0, "avrs": 0,
+    "sources": ["proposed source lineup"]
+  },
+  "openQuestions": ["things to resolve on the site walk"]
+}
+\`\`\`
+
+## Takeoff JSON
+\`\`\`json
+${buildTakeoffJSON(res)}
+\`\`\`
+`;
+}
 function buildSummaryMD(res){
   const { project, zones, services, edges, info, warnings, job } = res;
   const userZones = zones.filter(z=>zoneKind(z)==="room" && zoneHasAv(z, services[z.name]||[]));
@@ -990,6 +1050,7 @@ function renderResult(){
     <div class="row" style="margin-top:8px">
       <button class="btn small grow" onclick="dlTakeoffJSON()">TAKEOFF JSON</button>
       <button class="btn small grow" onclick="copyNotes()">⧉ COPY FOR NOTES</button>
+      <button class="btn small grow" onclick="copyAIPrompt()">⧉ COPY AI PROMPT</button>
     </div>`;
   h += `<h2>Rooms (${p.rooms.length})${flagged?` — ⚑ ${flagged}`:""}</h2>`;
   p.rooms.forEach((r,i)=>{
@@ -1036,6 +1097,11 @@ function dlTakeoffJSON(){
 async function copyNotes(){
   const text = buildNotesText(result);
   try{ await navigator.clipboard.writeText(text); toast("Copied — paste into Notes"); }
+  catch(e){ prompt("Copy below:", text); }
+}
+async function copyAIPrompt(){
+  const text = buildAIPrompt(result);
+  try{ await navigator.clipboard.writeText(text); toast("Copied — fill in CLIENT INPUT, then paste to your AI"); }
   catch(e){ prompt("Copy below:", text); }
 }
 $("filePick").addEventListener("change", e=>{
