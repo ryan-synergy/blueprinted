@@ -82,14 +82,23 @@
   #toast.show{opacity:1;}
   .err{border:1px solid var(--orange); border-radius:3px; padding:13px; color:var(--orange);
     font-family:var(--mono); font-size:13px; line-height:1.6; margin-top:14px;}
+  #kit{position:fixed; inset:0; z-index:40; background:var(--paper); overflow-y:auto; display:none;
+    padding:calc(14px + env(safe-area-inset-top)) 16px 30px;}
+  #kit .inner{max-width:560px; margin:0 auto;}
+  #kit .ovh{display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--ink); padding-bottom:9px;}
+  #kit .ovh .t{font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:var(--muted);}
+  #kit .ovh .c{font-family:var(--mono); font-size:13px; cursor:pointer; padding:4px 0 4px 16px;}
+  #kit .xlink{font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--muted);
+    text-decoration:none; border-bottom:1px solid var(--line2); padding-bottom:2px;}
 </style>
 </head>
 <body>
 <div id="topbar">
   <span class="wordmark">BLUEPRINTED</span>
-  <a href="https://ryan-synergy.github.io/sitewalk/" target="_blank" rel="noopener">SITEWALK →</a>
+  <a href="#" onclick="openTools();return false">TOOLS</a>
 </div>
 <div id="app"></div>
+<div id="kit"><div class="inner" id="kit-inner"></div></div>
 <div id="toast"></div>
 <input type="file" id="filePick" style="display:none">
 <input type="file" id="dirPick" webkitdirectory style="display:none">
@@ -1113,6 +1122,49 @@ $("dirPick").addEventListener("change", e=>{
   e.target.value = "";
 });
 renderHome();
+
+/* ============ Synergy Field Kit switcher ============ */
+const KIT_SELF = "blueprinted";
+const KIT_FALLBACK = [
+  {id:"sitewalk", name:"SiteWalk", desc:"AV site surveys — rooms, flags, build sheet, exports", url:"https://ryan-synergy.github.io/sitewalk/"},
+  {id:"blueprinted", name:"Blueprinted", desc:"Savant config → retrofit takeoff", url:"https://ryan-synergy.github.io/blueprinted/"},
+  {id:"dmf", name:"DMF Configurator", desc:"DMF Artafex take-offs — verified SKUs", url:"https://ryan-synergy.github.io/dmf-artafex-configurator/"},
+  {id:"tvcalc", name:"TV Wall Calculator", desc:"Mounting layout calculator", url:"", status:"parked"}
+];
+let toolsOpen = false;
+function kitList(){
+  try{ const c = JSON.parse(localStorage.getItem("blueprinted.kit")||"null"); if(c && Array.isArray(c.tools) && c.tools.length) return c.tools; }catch(e){}
+  return KIT_FALLBACK;
+}
+function openTools(){
+  toolsOpen = true;
+  renderTools();
+  document.getElementById("kit").style.display = "block";
+  fetch("https://ryan-synergy.github.io/tools.json", {cache:"no-store"}).then(r=>r.json()).then(j=>{
+    if(j && Array.isArray(j.tools) && j.tools.length){
+      localStorage.setItem("blueprinted.kit", JSON.stringify(j));
+      if(toolsOpen) renderTools();
+    }
+  }).catch(()=>{});
+}
+function closeTools(){ toolsOpen = false; document.getElementById("kit").style.display = "none"; }
+function renderTools(){
+  const rows = kitList().map(t=>{
+    const here = t.id===KIT_SELF, parked = t.status==="parked" || !t.url;
+    const tag = here ? "YOU'RE HERE" : (parked ? "IN THE SHOP" : "");
+    if(tag) return `<div class="item" style="opacity:.55; cursor:default; align-items:center">
+      <div style="flex:1; min-width:0"><div class="title">${esc(t.name)}</div><div class="sub">${esc(t.desc||"")}</div></div>
+      <span style="font-family:var(--mono); font-size:10px; letter-spacing:.12em; color:var(--muted)">${tag}</span></div>`;
+    return `<a class="item" href="${esc(t.url)}" style="text-decoration:none; color:var(--ink); align-items:center">
+      <div style="flex:1; min-width:0"><div class="title">${esc(t.name)}</div><div class="sub">${esc(t.desc||"")}</div></div>
+      <span style="color:var(--orange); font-family:var(--mono)">→</span></a>`;
+  }).join("");
+  document.getElementById("kit-inner").innerHTML =
+    `<div class="ovh"><span class="t">SYNERGY FIELD KIT</span><span class="c" onclick="closeTools()">CLOSE ✕</span></div>
+    <div style="margin-top:14px">${rows}</div>
+    <div style="text-align:center; margin-top:18px"><a class="xlink" href="https://ryan-synergy.github.io/">FIELD KIT HOME →</a></div>`;
+}
+
 // exposed for testing
 window.BP = { convert, unzip, handleZipFile, finishConvert };
 </script>
