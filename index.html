@@ -543,7 +543,7 @@ function buildTakeoffCSV(res){
       m.avrs.join("; "), m.amps.join("; "), m.speakers.join("; "),
       m.localSources.join("; "), m.sourcesAvail.join("; "), m.others.join("; "),
       roomFlagList(r).join("; "),
-      r.flagged ? "Verify — see room notes in SiteWalk import" : "" ]);
+      r.flagged ? "Verify — see room notes in AVWalk import" : "" ]);
   });
   rows.push([]);
 
@@ -787,7 +787,7 @@ function buildSummaryMD(res){
   }
   if(nonavZones.length){
     L.push(`## Non-AV zones — not imported as rooms (${nonavZones.length})`,"");
-    L.push("Lighting / relay / camera-only zones; in SiteWalk they matter only as quote conversations, not walk rooms.","");
+    L.push("Lighting / relay / camera-only zones; in AVWalk they matter only as quote conversations, not walk rooms.","");
     L.push([...nonavZones].sort().join(", "),"");
   }
   if(edges.length){
@@ -797,13 +797,13 @@ function buildSummaryMD(res){
       L.push(`- ${src} [${byName[src]||"?"}] → ${snk} [${byName[snk]||"?"}]  (${fmt})`);
     L.push("");
   }
-  L.push("## How the SiteWalk import was filled","");
+  L.push("## How the AVWalk import was filled","");
   L.push("- Every room imported with gear marked **Existing — keep**; flip to replace on the walk. "+
     "TV sizes left TBD (old sizes are in room notes).");
   L.push("- Wiring status left blank everywhere → orange-flags every room on purpose.");
   L.push("- Rack source steppers prefilled from old sources but kept **TBD-flagged**.");
   L.push("- Non-AV systems (lighting, pool, lifts, HVAC) are in project/room notes — "+
-    "SiteWalk doesn't model them, but they're quote conversations.");
+    "AVWalk doesn't model them, but they're quote conversations.");
   return L.join("\n")+"\n";
 }
 
@@ -976,7 +976,7 @@ function renderHome(){
     <div style="margin-top:10px">
       <div style="font-size:22px; font-weight:600">Savant config takeoff</div>
       <div class="muted" style="margin-top:4px; line-height:1.55">
-        Drop a RacePoint Blueprint config. Get a SiteWalk survey with every room
+        Drop a RacePoint Blueprint config. Get an AVWalk survey with every room
         pre-built and flagged, plus equipment + signal reference sheets.</div>
     </div>
     <div id="drop">
@@ -1052,7 +1052,7 @@ function renderResult(){
     h += `<div class="flags"><div class="ftitle">⚑ CONVERTER WARNINGS</div>`+
       warnings.map(w=>`<div class="fitem">${esc(w)}</div>`).join("")+`</div>`;
   h += `<h2>Export</h2>
-    <button class="btn primary block" onclick="dlJSON()">⬇ SITEWALK JSON — IMPORT ON SURVEYS SCREEN</button>
+    <button class="btn primary block" onclick="dlJSON()">⬇ AVWALK JSON — IMPORT ON SURVEYS SCREEN</button>
     <div class="row" style="margin-top:8px">
       <button class="btn small grow" onclick="dlCSV('takeoff')">TAKEOFF CSV</button>
       <button class="btn small grow" onclick="dlCSV('matrix')">ZONE×SOURCE CSV</button>
